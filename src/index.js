@@ -11,3 +11,19 @@ root.render(<App />);
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+window.addEventListener('error', event => {
+	console.error('%c*** event=', 'background: #eee; color: blue', event);
+	alert(event.message);
+});
+
+window.addEventListener('unhandledrejection', error => {
+	console.error('%c*** event=', 'background: #eee; color: blue', error);
+	alert(error.message || error.reason);
+});
+
+window.addEventListener('rejectionhandled', error => {
+	console.error('%c*** event=', 'background: #eee; color: blue', error);
+	alert(error.message || error.reason);
+});
+

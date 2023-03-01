@@ -9,20 +9,26 @@ function Page() {
 
 	// get cameras list
 	useEffect(() => {
-		QrScanner.listCameras().then(_cameras => {
-			videoContainer = document.getElementById('video-container');
-			videoElem = videoContainer.children[0];
-			infoContainerElem = document.getElementById('info-container');
-			cameras = _cameras;
-			if (!cameras?.length) return;
-			if (!cameras[0].id) {
-				// не удалось распознать камеру
-				return renderError('Нет доступа к камере. Разрешите доступ у перезагрузите приложение.');
-			}
-			renderSwitchCameraButton();
-			cameraIndex = cameras.length - 1;
-			initQrScanner(cameras[cameraIndex].id);
-			qrScanner.start();
+		videoContainerElem = document.getElementById('video-container');
+		videoElem = videoContainerElem.children[0];
+		infoContainerElem = document.getElementById('info-container');
+		initQrScanner();
+		qrScanner.start().then(() => {
+			QrScanner.listCameras(true).then(_cameras => {
+				console.debug('%c*** cameras=', 'background: #eee; color: blue', _cameras);
+				cameras = _cameras;
+				if (!cameras?.length) return;
+				if (!cameras[0].id) {
+					// не удалось распознать камеру
+					return renderError('Нет доступа к камере. Разрешите доступ у перезагрузите приложение.');
+				}
+				renderSwitchCameraButton();
+				checkFlash();
+				cameraIndex = cameras.length - 1;
+				if (cameras.length > 1) {
+					switchCamera(cameraIndex);
+				}
+			});
 		});
 	}, []);
 
@@ -36,9 +42,10 @@ function Page() {
 
 let qrScanner;
 let lastError;
-let videoContainer;
+let videoContainerElem;
 let videoElem;
 let infoContainerElem;
+let switchCameraButtonElem;
 let cameras;
 let cameraIndex;
 let qrCount = 0;
@@ -70,12 +77,11 @@ const callbacker = {
 	handleError: (...args) => callbacker.onError?.apply(this, args),
 }
 
-function initQrScanner(cameraId) {
+function initQrScanner() {
 	qrScanner = new QrScanner(
 		videoElem,
 		callbacker.handleDetect,
 		{
-			preferredCamera: cameraId,
 			onDecodeError: callbacker.handleError,
 			highlightScanRegion: true,
 			highlightCodeOutline: true,
@@ -83,17 +89,22 @@ function initQrScanner(cameraId) {
 	);
 }
 
-function switchCamera(cameraId) {
-	qrScanner.setCamera(cameraId);
+function updateSwitchCameraText() {
+	switchCameraButtonElem.innerText = `Camera ${cameraIndex}`;
+}
+
+function switchCamera(index) {
+	qrScanner.setCamera(cameras[index].id);
+	updateSwitchCameraText();
 }
 
 function switchStyle(cn) {
 	clearTimeout(restoreStyleTimerId);
-	videoContainer.className = cn;
+	videoContainerElem.className = cn;
 	qrScanner._updateOverlay();
 	if (cn) {
 		restoreStyleTimerId = setTimeout(() => {
-			switchStyle();
+			switchStyle('');
 		}, 1000);
 	}
 }
@@ -102,15 +113,29 @@ function renderSwitchCameraButton() {
 	infoContainerElem.innerHTML = '';
 	try {
 		if (cameras.length <= 1) return;
-		const button = document.createElement('button');
-		button.innerText = 'Camera';
-		infoContainerElem.appendChild(button);
-		button.addEventListener('click', () => {
+		switchCameraButtonElem = document.createElement('button');
+		infoContainerElem.appendChild(switchCameraButtonElem);
+		switchCameraButtonElem.addEventListener('click', () => {
 			cameraIndex = (cameraIndex + 1) % cameras.length;
-			switchCamera(cameras[cameraIndex].id);
+			switchCamera(cameraIndex);
 		});
+		updateSwitchCameraText();
+	} catch (error) {
+		renderError(error);
 	}
-	catch(error) { renderError(error); }
+}
+
+function checkFlash() {
+	qrScanner.hasFlash().then(hasFlash => {
+		if (hasFlash) {
+			const flashToggle = document.createElement('button');
+			flashToggle.innerText = 'Flash';
+			infoContainerElem.appendChild(flashToggle);
+			flashToggle.addEventListener('click', () => {
+				qrScanner.toggleFlash();
+			});
+		}
+	});
 }
 
 function renderError(error) {
